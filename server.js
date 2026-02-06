@@ -1,0 +1,153 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const agentLogic = require('./agentLogic');
+const config = require('./config');
+const ultraMsgService = require('./ultraMsgService');
+
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Persistent session storage
+const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+let sessions = {};
+try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+        sessions = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+        console.log(`[Server] Loaded ${Object.keys(sessions).length} sessions from disk.`);
+    }
+} catch (err) {
+    console.error("[Server] Error loading sessions file:", err);
+}
+
+function saveSessions() {
+    try {
+        fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+    } catch (err) {
+        console.error("[Server] Error saving sessions file:", err);
+    }
+}
+
+const processedMsgIds = new Set();
+
+// Health Check
+app.get('/health', (req, res) => {
+    res.send('Ayelet Agent is Online');
+});
+
+// Green API Webhook Endpoint (Now handles UltraMsg too)
+app.post('/webhook', async (req, res) => {
+    try {
+        const body = req.body;
+        // Super Debug Logging
+        fs.appendFileSync('webhook_debug.log', `\n--- WEBHOOK RECEIVED [${new Date().toISOString()}] ---\n${JSON.stringify(body, null, 2)}\n`);
+
+        // Log basic info about the webhook
+        console.log(`[Webhook] Received event: ${body.event_type || body.event || body.typeWebhook} from ${body.data?.from || body.senderData?.chatId}`);
+
+        // Detect incoming message format and ID
+        let chatId, message, msgId;
+
+        // UltraMsg format (Standard chat)
+        if ((body.event_type === 'message_received' || body.event === 'message_received') && body.data) {
+            if (body.data.type === 'chat') {
+                // IMPORTANT: Ignore messages sent by the bot itself (fromMe: true)
+                if (body.data.fromMe === true || body.data.fromMe === "true") {
+                    console.log(`[Webhook] Skipping outgoing message from bot (ID: ${body.data.id})`);
+                    return res.status(200).send('Ignored self');
+                }
+
+                chatId = body.data.from;
+                message = body.data.body;
+                msgId = body.data.id;
+                console.log(`[Webhook] UltraMsg Chat from ${chatId}: "${message}" (ID: ${msgId})`);
+            }
+        }
+        // Green API format (Keep for compatibility/backup)
+        else if (body.typeWebhook === 'incomingMessageReceived' && body.messageData?.typeMessage === 'textMessage') {
+            chatId = body.senderData.chatId;
+            message = body.messageData.textMessageData.textMessage;
+            msgId = body.idMessage;
+            console.log(`[Webhook] Green API Chat from ${chatId}: "${message}" (ID: ${msgId})`);
+        }
+
+        if (chatId && message && msgId) {
+            // Manual Reset Keyword
+            if (message.trim().toLowerCase() === 'איפוס') {
+                console.log(`[Server] Manual reset requested for ${chatId}`);
+                delete sessions[chatId];
+                saveSessions();
+                await ultraMsgService.sendMessage(chatId, "השיחה אופסה. אפשר להתחיל מחדש! שלח/י 'היי' כדי להתחיל.");
+                return res.status(200).send('Reset');
+            }
+
+            // 1. Idempotency Check
+            if (processedMsgIds.has(msgId)) {
+                console.log(`[Webhook] Duplicate message detected (ID: ${msgId}). Skipping.`);
+                return res.status(200).send('Duplicate');
+            }
+            // Keep set size manageable
+            if (processedMsgIds.size > 1000) processedMsgIds.clear();
+            processedMsgIds.add(msgId);
+
+            // 2. Initialize or Get Session
+            if (!sessions[chatId]) {
+                console.log(`[Server] Creating NEW session for ${chatId}`);
+                sessions[chatId] = agentLogic.createSession(chatId);
+            }
+            const session = sessions[chatId];
+            fs.appendFileSync('webhook_debug.log', `[Server] State Before: chatId=${chatId}, Step=${session.step}, Retry=${session.retryCount || 0}\n`);
+
+            // 3. Concurrency Lock
+            if (session.isProcessing) {
+                console.log(`[Webhook] Session ${chatId} is already processing. Rejecting retry.`);
+                return res.status(200).send('Locked');
+            }
+            session.isProcessing = true;
+
+            try {
+                const result = await agentLogic.processMessage(session, message);
+
+                // Update session state
+                sessions[chatId] = result.session;
+                saveSessions();
+                fs.appendFileSync('webhook_debug.log', `[Server] State After: chatId=${chatId}, NewStep=${result.session.step}, NewRetry=${result.session.retryCount}\n`);
+                console.log(`[Server] After process: ${chatId} - New Step: ${result.session.step}, New Retry: ${result.session.retryCount}`);
+
+                // Send response via UltraMsg
+                if (result.response) {
+                    console.log(`[Webhook] Sending response to ${chatId}...`);
+                    await ultraMsgService.sendMessage(chatId, result.response);
+                }
+            } finally {
+                session.isProcessing = false;
+            }
+
+            return res.status(200).send('OK');
+        } else {
+            return res.status(200).send('Handled');
+        }
+
+    } catch (error) {
+        console.error('Error processing webhook:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Endpoint to reset session (for testing)
+app.post('/reset', (req, res) => {
+    const { phone_number } = req.body;
+    if (sessions[phone_number]) {
+        delete sessions[phone_number];
+        res.json({ message: 'Session reset' });
+    } else {
+        res.json({ message: 'No session found to reset' });
+    }
+});
+
+app.listen(config.PORT, () => {
+    console.log(`Server running on port ${config.PORT}`);
+});

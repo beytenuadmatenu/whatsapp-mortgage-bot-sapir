@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-mortgage-agent",
+  "version": "1.0.0",
+  "description": "WhatsApp Mortgage Agent 'Ayelet'",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test_agent.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.6.0",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "localtunnel": "^2.0.2",
+    "ngrok": "^5.0.0-beta.2"
+  }
+}
