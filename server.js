@@ -63,6 +63,13 @@ app.post('/webhook', async (req, res) => {
                 chatId = body.data.from;
                 message = body.data.body;
                 msgId = body.data.id;
+
+                // IMPORTANT: Ignore group messages — only respond to private (direct) chats
+                if (chatId && chatId.endsWith('@g.us')) {
+                    console.log(`[Webhook] Skipping group message from ${chatId}`);
+                    return res.status(200).send('Ignored group');
+                }
+
                 console.log(`[Webhook] UltraMsg Chat from ${chatId}: "${message}" (ID: ${msgId})`);
             }
         }
