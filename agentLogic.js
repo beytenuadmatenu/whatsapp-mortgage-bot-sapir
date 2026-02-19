@@ -19,7 +19,9 @@ function createSession(phoneNumber) {
         data: {},
         history: [], // Standard array of {role, content}
         status: 'active',
-        completed: false
+        completed: false,
+        leadSent: false,        // שומר האם הליד כבר נשלח פעם אחת
+        lastMeetingTime: null   // שומר את זמן הפגישה האחרון שנשלח לקבוצה
     };
 }
 
@@ -30,9 +32,9 @@ async function processMessage(session, userMessage) {
         session.data = {};
         session.status = 'active';
         session.completed = false;
+        session.leadSent = false;
+        session.lastMeetingTime = null;
 
-        // Add a "System Start" message from the user to anchor the history.
-        // This prevents the bot's greeting from being stripped by the SDK filter (which requires starting with 'user').
         session.history.push({ role: 'user', content: 'התחל שיחה חדשה' });
 
         const resetMsg = "השיחה אופסה. אפשר להתחיל מחדש. היי, אני ספיר, איך אפשר לעזור?";
@@ -42,13 +44,9 @@ async function processMessage(session, userMessage) {
 
     session.history.push({ role: 'user', content: userMessage });
 
-    // If session was previously completed, allow continued conversation
-    // (e.g., user wants to reschedule). The AI will handle it naturally.
-
     // Call Gemini
-    const geminiHistory = mapHistoryToGemini(session.history.slice(0, -1)); // History excluding current msg
+    const geminiHistory = mapHistoryToGemini(session.history.slice(0, -1));
 
-    // Inject Current Time/Date for accurate greetings
     const now = new Date();
     const timeString = now.toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
     const dateString = now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
@@ -58,111 +56,102 @@ async function processMessage(session, userMessage) {
     const aiResponseText = await geminiService.generateChatResponse(
         dynamicSystemPrompt,
         geminiHistory,
-        userMessage, // Current message
+        userMessage,
         { temperature: 0.7, top_p: 0.9 }
     );
 
     if (!aiResponseText) {
-        // Fallback if AI fails completely - EXPLICIT ERROR FOR DEBUGGING
-        const errorResponse = "⚠️ System Error: Unable to connect to Gemini API. Please check server logs for details (API Key or Model Issue).";
+        const errorResponse = "⚠️ System Error: Unable to connect to Gemini API.";
         session.history.push({ role: 'assistant', content: errorResponse });
         return { session, response: errorResponse };
     }
 
-    // Check for JSON (Look for any valid JSON object first)
-    // We pass NO key, because the AI returns the object directly { val: ... }
-    const leadSummary = geminiService.extractJson(aiResponseText);
-
-    // GLOBAL: Strip internal "THOUGHT:" reasoning from ALL responses
-    // Handles cases like: "THOUGHT: blah blah blah.Hebrew text here"
-    // Pattern: THOUGHT: followed by English text, stopping at first Hebrew char or newline
+    // --- 1. ניקוי מחשבות (Reasoning) של Gemini 2.5 Flash ---
+    // ה-regex המעודכן תופס את כל הבלוק כולל ירידות שורה עד לאות העברית הראשונה
     let finalResponse = aiResponseText
-        .replace(/THOUGHT:.*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/THINKING:.*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/REASONING:.*?(?=[\u0590-\u05FF])/gi, '')
+        .replace(/(THOUGHT|THINKING|REASONING):[\s\S]*?(?=[\u0590-\u05FF])/gi, '')
         .replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, '')
         .trim();
 
+    // בדיקת JSON
+    const leadSummary = geminiService.extractJson(aiResponseText);
+
     if (leadSummary) {
-        console.log(`[Agent] valid JSON found! Completing session.`);
+        console.log(`[Agent] valid JSON found!`);
+
+        // חילוץ מועד הפגישה מה-JSON
+        const timeKey = Object.keys(leadSummary).find(k => k.includes('time') || k.includes('moed') || k.includes('זמן') || k.includes('שעה') || k.includes('meeting'));
+        const meetingTime = timeKey ? leadSummary[timeKey] : 'לא צוין';
+
+        // בדיקה: האם לשלוח הודעה לקבוצה? (רק אם ליד חדש או שהזמן השתנה)
+        const isNewLead = !session.leadSent;
+        const isTimeChanged = session.leadSent && session.lastMeetingTime !== meetingTime;
+
+        if (isNewLead || isTimeChanged) {
+            if (config.HOT_LEADS_GROUP_ID) {
+                // חילוץ שם
+                const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
+                const fullName = fullNameKey ? leadSummary[fullNameKey] : (session.data.full_name || 'לקוח');
+
+                // חילוץ סיכום/פרטים
+                const summaryKey = Object.keys(leadSummary).find(k => k.includes('summary') || k.includes('sentence') || k.includes('פרטים'));
+                let details = summaryKey ? leadSummary[summaryKey] : '';
+
+                if (!details) {
+                    const city = session.data.city || leadSummary['city'] || leadSummary['City of Residence'] || 'לא ידוע';
+                    const amount = session.data.amount || leadSummary['amount'] || leadSummary['Amount Requested'] || 'לא ידוע';
+                    const purpose = session.data.purpose || leadSummary['purpose'] || leadSummary['Purpose of Loan'] || 'לא ידוע';
+                    details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
+                }
+
+                // פורמט טלפון ולינק לוואטסאפ
+                const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
+                const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
+                const waLink = `wa.me/${formattedPhone}`;
+
+                // בחירת כותרת (חדש או עדכון)
+                const emojiHeader = isNewLead ? "🔥 *ליד חם חדש (אש)!* 🔥" : "🔄 *עדכון מועד פגישה* 🔄";
+
+                const groupMessage = `${emojiHeader}
+
+*שם*: ${fullName}
+*טלפון*: ${waLink}
+*פרטים*: ${details}
+*מועד פגישה*: ${meetingTime}
+
+${isNewLead ? '*סוכן, נא לחזור אל הלקוח!* 🚀' : '*סוכן, נא לעדכן ביומן!* 📅'}`;
+
+                try {
+                    const ultraMsgService = require('./ultraMsgService');
+                    ultraMsgService.sendMessage(config.HOT_LEADS_GROUP_ID, groupMessage);
+
+                    // עדכון מצב הסשן כדי למנוע כפילויות
+                    session.leadSent = true;
+                    session.lastMeetingTime = meetingTime;
+                } catch (e) {
+                    console.error("[Agent] Group notification failed:", e);
+                }
+            }
+        }
+
+        // עדכון סטטוס סיום
         session.completed = true;
         session.status = 'finished';
         session.final_data = leadSummary;
 
-        // Remove JSON block from response to get the pleasant closing message
-        // The System Prompt provides text BEFORE the JSON. We need to strip everything from the first JSON-like structure.
-
-        // Strategy: 
-        // 1. Remove standard markdown json blocks
-        finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "");
-
-        // 2. Remove "json" label if it appears alone or before a brace
+        // --- 2. ניקוי הפלט עבור הלקוח (הסרת ה-JSON והשאריות) ---
+        finalResponse = finalResponse.replace(/```json[\s\S]*?```/g, "");
         finalResponse = finalResponse.replace(/\bjson\b/gi, "");
-
-        // 3. Remove custom token |||json_start|||
         finalResponse = finalResponse.replace(/\|\|\|json_start\|\|\|/g, "");
 
-        // 3.5 (THOUGHT cleanup already done globally above)
-
-        // 4. AGGRESSIVE: Remove everything from the first '{' to the end.
-        // We assume the model outputs text first, then the JSON block.
         const firstBraceIndex = finalResponse.indexOf('{');
         if (firstBraceIndex !== -1) {
             finalResponse = finalResponse.substring(0, firstBraceIndex);
         }
 
-        // 5. Cleanup trailing whitespace and weird chars
         finalResponse = finalResponse.trim();
-
-        // Fallback only if absolutely empty, but we trust Gemini 2 Flash with the new prompt.
         if (finalResponse.length < 2) {
             finalResponse = "תודה רבה! הפרטים התקבלו.";
-        }
-
-        // ALWAYS send to Group if ID is configured
-        if (config.HOT_LEADS_GROUP_ID) {
-            // Data Extraction logic to match users specific format request
-
-            // Name
-            const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
-            const fullName = fullNameKey ? leadSummary[fullNameKey] : (session.data.full_name || 'לקוח');
-
-            // Meeting Time
-            const timeKey = Object.keys(leadSummary).find(k => k.includes('time') || k.includes('moed') || k.includes('זמן') || k.includes('שעה') || k.includes('meeting'));
-            const meetingTime = timeKey ? leadSummary[timeKey] : 'לא צוין';
-
-            // Summary Details Sentence
-            const summaryKey = Object.keys(leadSummary).find(k => k.includes('summary') || k.includes('sentence') || k.includes('פרטים'));
-            let details = summaryKey ? leadSummary[summaryKey] : '';
-
-            if (!details) {
-                const city = session.data.city || leadSummary['city'] || leadSummary['City of Residence'] || 'לא ידוע';
-                const amount = session.data.amount || leadSummary['amount'] || leadSummary['Amount Requested'] || 'לא ידוע';
-                const purpose = session.data.purpose || leadSummary['purpose'] || leadSummary['Purpose of Loan'] || 'לא ידוע';
-                details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
-            }
-
-            // Phone cleaning and formatting logic from user snippet
-            const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
-            const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
-            const waLink = `wa.me/${formattedPhone}`;
-
-            // Details logic (using summary_sentence from Gemini as 'details')
-            const groupMessage = `🔥 *ליד חם חדש (אש)!* 🔥
-
-*שם*: ${fullName}
-*טלפון*: ${waLink}
-*פרטים*: ${details}
-*מועד חזרה רצוי*: ${meetingTime || 'בהקדם'}
-
-*סוכן, נא חזור אל הלקוח!* 🚀`;
-
-            try {
-                const ultraMsgService = require('./ultraMsgService');
-                ultraMsgService.sendMessage(config.HOT_LEADS_GROUP_ID, groupMessage);
-            } catch (e) {
-                console.error("[Agent] Group notification failed:", e);
-            }
         }
     }
 
@@ -171,8 +160,6 @@ async function processMessage(session, userMessage) {
 }
 
 function mapHistoryToGemini(history) {
-    // Filter out leading model messages to comply with Gemini SDK requirements
-    // The conversation history MUST start with a user message.
     let cleanHistory = [...history];
     while (cleanHistory.length > 0 && cleanHistory[0].role === 'assistant') {
         cleanHistory.shift();
