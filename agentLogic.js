@@ -29,6 +29,8 @@ async function processMessage(session, userMessage) {
     // Helper to detect if conversation is finished
     if (session.completed) {
         // If user continues talking after completion, we can either ignore or just give a generic "Thanks"
+        // In a perfect world, we'd ask Gemini again, but for safety in this loop, a static ack is okay.
+        // OR we could let Gemini handle post-completion chat too, but that might re-trigger leads.
         const responseText = "הפרטים כבר נקלטו בהצלחה. נציג ייצור איתך קשר בהקדם!";
         session.history.push({ role: 'assistant', content: responseText });
         return { session, response: responseText };
@@ -64,28 +66,38 @@ async function processMessage(session, userMessage) {
         session.final_data = leadSummary;
 
         // Remove JSON block from response to get the pleasant closing message
+        // The System Prompt is now instructed to provide text BEFORE the JSON.
         finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "").replace(/\{[\s\S]*"LEAD_SUMMARY"[\s\S]*\}/g, "").trim();
 
-        if (finalResponse.length < 5) {
-            // If AI just gave JSON, we need a polite closing.
-            finalResponse = "תודה רבה על כל הפרטים! רשמתי הכל ואנחנו ניצור איתך קשר בהקדם הלאה. יום מקסים!";
+        // Fallback only if absolutely empty, but we trust Gemini 2 Flash with the new prompt.
+        if (finalResponse.length < 2) {
+            finalResponse = "תודה רבה! הפרטים התקבלו.";
         }
 
-        // Calculate Lead Score based on Summary Data
-        const score = calculateLeadScore(leadSummary);
-
-        // ALWAYS send to Group if ID is configured (User Request)
+        // ALWAYS send to Group if ID is configured
         if (config.HOT_LEADS_GROUP_ID) {
-            const customerSummary = Object.entries(leadSummary).map(([k, v]) => `${k}: ${v}`).join('\n');
+            // Data Extraction logic to match users specific format request
 
-            // Try to find specific fields for the formatted message, favoring Hebrew keys from prompt
-            const fullNameKey = Object.keys(leadSummary).find(k => k.includes('Full Name') || k.includes('שם מלא'));
+            // Name
+            const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
             const fullName = fullNameKey ? leadSummary[fullNameKey] : (session.data.full_name || 'לקוח');
 
-            // Dynamic Header
-            const title = score === 'HOT' ? "🔥 *ליד חם (אש)!* 🔥" : "🔔 *ליד חדש מהבוט* 🔔";
+            // Meeting Time
+            const timeKey = Object.keys(leadSummary).find(k => k.includes('time') || k.includes('moed') || k.includes('זמן') || k.includes('שעה') || k.includes('meeting'));
+            const meetingTime = timeKey ? leadSummary[timeKey] : 'לא צוין';
 
-            const groupMessage = `${title}\n*שם:* ${fullName}\n*טלפון:* wa.me/${session.phone_number.split('@')[0]}\n*דירוג:* ${score}\n\n*פרטים:* \n${customerSummary}\n\nנציג, נא לחזור אל הלקוח/ה! 🚀`;
+            // Summary Details Sentence
+            const summaryKey = Object.keys(leadSummary).find(k => k.includes('summary') || k.includes('sentence') || k.includes('פרטים'));
+            let details = summaryKey ? leadSummary[summaryKey] : '';
+
+            if (!details) {
+                const city = session.data.city || leadSummary['city'] || leadSummary['City of Residence'] || 'לא ידוע';
+                const amount = session.data.amount || leadSummary['amount'] || leadSummary['Amount Requested'] || 'לא ידוע';
+                const purpose = session.data.purpose || leadSummary['purpose'] || leadSummary['Purpose of Loan'] || 'לא ידוע';
+                details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
+            }
+
+            const groupMessage = `🔥 ליד חם חדש (אש)! 🔥\n\nשם: ${fullName}\nטלפון: wa.me/${session.phone_number.split('@')[0]}\nפרטים: ${details}\nמועד חזרה רצוי: ${meetingTime}\n\nסוכן, נא חזור אל הלקוח! 🚀`;
 
             try {
                 const ultraMsgService = require('./ultraMsgService');
@@ -105,43 +117,6 @@ function mapHistoryToGemini(history) {
         role: h.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: h.content }]
     }));
-}
-
-function isYes(text) {
-    if (!text) return false;
-    const clean = String(text).toLowerCase().trim();
-    return /yes|כן|אמת|ברור|חיובי|יאפ|בוודאי|נכון/.test(clean);
-}
-
-function calculateLeadScore(data) {
-    const getVal = (keys) => {
-        for (const k of keys) {
-            if (data[k]) return data[k];
-            // Also check for keys that *contain* the string (fuzzy match)
-            const foundKey = Object.keys(data).find(dk => keys.some(search => dk.includes(search)));
-            if (foundKey) return data[foundKey];
-        }
-        return '';
-    };
-
-    const hasPropertyVal = getVal(['Property Ownership', 'האם בעל נכס', 'has_property']);
-    const hasProperty = isYes(hasPropertyVal);
-
-    const registry = String(getVal(['Property Registry', 'היכן רשום הנכס', 'property_registry']));
-    const isTabu = registry.includes('Tabu') || registry.includes('טאבו');
-    const isMinhal = registry.includes('Minhal') || registry.includes('מינהל');
-
-    const buildingPermitVal = getVal(['Building Permit', 'האם קיים היתר בניה', 'building_permit']);
-    const buildingPermit = isYes(buildingPermitVal);
-
-    const bankIssues = String(getVal(['Bank Issues', 'בעיות בבנקים', 'bank_issues']));
-    const noBankIssues = !isYes(bankIssues) && (bankIssues.includes('No') || bankIssues.includes('לא') || bankIssues.includes('אין') || bankIssues === 'None' || bankIssues === 'null');
-
-    // Logic: Has Property AND (Tabu OR Minhal) AND Permit AND No Issues -> HOT
-    if (hasProperty && (isTabu || isMinhal) && buildingPermit && noBankIssues) {
-        return 'HOT';
-    }
-    return 'WARM';
 }
 
 module.exports = {
