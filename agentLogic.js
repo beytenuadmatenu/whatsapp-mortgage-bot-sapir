@@ -66,10 +66,11 @@ async function processMessage(session, userMessage) {
     }
 
     // --- 1. ניקוי מחשבות (Reasoning) של Gemini 2.5 Flash ---
-    // ה-regex המעודכן תופס את כל הבלוק כולל ירידות שורה עד לאות העברית הראשונה
+    // The AI outputs "THOUGHT" or "THOUGHT:" (with or without colon) followed by English reasoning,
+    // then the Hebrew response. We strip everything from THOUGHT to the first Hebrew character.
     let finalResponse = aiResponseText
-        .replace(/(THOUGHT|THINKING|REASONING):[\s\S]*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, '')
+        .replace(/(THOUGHT|THINKING|REASONING):?[\s\S]*?(?=[\u0590-\u05FF])/gi, '')
+        .replace(/^(THOUGHT|THINKING|REASONING):?.*$/gim, '')
         .trim();
 
     // בדיקת JSON
