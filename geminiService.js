@@ -2,33 +2,43 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const config = require('./config');
 
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
 async function generateChatResponse(systemInstruction, history, message, options = {}) {
     try {
-        const chat = model.startChat({
-            history: history,
-            systemInstruction: {
-                role: "user",
-                parts: [{ text: systemInstruction }]
-            },
-            generationConfig: {
-                temperature: options.temperature || 0.7,
-                topP: options.top_p || 0.9,
-            }
-        });
-
-        console.log(`[Gemini] Sending message to model: "${message.substring(0, 50)}..."`);
-        const result = await chat.sendMessage(message);
-        console.log(`[Gemini] Received response object`);
-        const response = await result.response;
-        const text = response.text();
-        console.log(`[Gemini] Response text length: ${text.length}`);
-        return text;
+        // Primary Attempt: Gemini 2.0 Flash
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        return await runChat(model, systemInstruction, history, message, options);
     } catch (error) {
-        console.error("Error generating response from Gemini:", error);
-        return null;
+        console.error("Gemini 2.0 Flash failed:", error.message);
+
+        // Fallback Attempt: Gemini 1.5 Flash
+        try {
+            console.log("Attempting fallback to Gemini 1.5 Flash...");
+            const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            return await runChat(fallbackModel, systemInstruction, history, message, options);
+        } catch (fallbackError) {
+            console.error("Gemini 1.5 Flash failed too:", fallbackError.message);
+            return null;
+        }
     }
+}
+
+async function runChat(model, systemInstruction, history, message, options) {
+    const chat = model.startChat({
+        history: history,
+        systemInstruction: {
+            role: "user",
+            parts: [{ text: systemInstruction }]
+        },
+        generationConfig: {
+            temperature: options.temperature || 0.7,
+            topP: options.top_p || 0.9,
+        }
+    });
+
+    console.log(`[Gemini] Sending message...`);
+    const result = await chat.sendMessage(message);
+    const response = await result.response;
+    return response.text();
 }
 
 /**
