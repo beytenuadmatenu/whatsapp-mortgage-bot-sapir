@@ -15,13 +15,15 @@ const sendMessage = async (chatId, message) => {
     const url = `${config.ULTRAMSG_API_URL}messages/chat`;
 
     try {
-        const response = await axios.post(url, {
+        const data = new URLSearchParams({
             token: config.ULTRAMSG_TOKEN,
             to: to,
             body: message
-        }, {
+        });
+
+        const response = await axios.post(url, data, {
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
         });
 
