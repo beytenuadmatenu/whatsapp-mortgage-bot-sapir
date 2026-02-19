@@ -42,15 +42,8 @@ async function processMessage(session, userMessage) {
 
     session.history.push({ role: 'user', content: userMessage });
 
-    // Helper to detect if conversation is finished
-    if (session.completed) {
-        // If user continues talking after completion, we can either ignore or just give a generic "Thanks"
-        // In a perfect world, we'd ask Gemini again, but for safety in this loop, a static ack is okay.
-        // OR we could let Gemini handle post-completion chat too, but that might re-trigger leads.
-        const responseText = "הפרטים כבר נקלטו בהצלחה. נציג ייצור איתך קשר בהקדם!";
-        session.history.push({ role: 'assistant', content: responseText });
-        return { session, response: responseText };
-    }
+    // If session was previously completed, allow continued conversation
+    // (e.g., user wants to reschedule). The AI will handle it naturally.
 
     // Call Gemini
     const geminiHistory = mapHistoryToGemini(session.history.slice(0, -1)); // History excluding current msg
@@ -80,7 +73,15 @@ async function processMessage(session, userMessage) {
     // We pass NO key, because the AI returns the object directly { val: ... }
     const leadSummary = geminiService.extractJson(aiResponseText);
 
-    let finalResponse = aiResponseText;
+    // GLOBAL: Strip internal "THOUGHT:" reasoning from ALL responses
+    // Handles cases like: "THOUGHT: blah blah blah.Hebrew text here"
+    // Pattern: THOUGHT: followed by English text, stopping at first Hebrew char or newline
+    let finalResponse = aiResponseText
+        .replace(/THOUGHT:.*?(?=[\u0590-\u05FF])/gi, '')
+        .replace(/THINKING:.*?(?=[\u0590-\u05FF])/gi, '')
+        .replace(/REASONING:.*?(?=[\u0590-\u05FF])/gi, '')
+        .replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, '')
+        .trim();
 
     if (leadSummary) {
         console.log(`[Agent] valid JSON found! Completing session.`);
@@ -101,9 +102,7 @@ async function processMessage(session, userMessage) {
         // 3. Remove custom token |||json_start|||
         finalResponse = finalResponse.replace(/\|\|\|json_start\|\|\|/g, "");
 
-        // 3.5 Remove "THOUGHT:" or internal reasoning logs (Safety Net)
-        // Removes lines starting with THOUGHT: or THINKING:
-        finalResponse = finalResponse.replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, "");
+        // 3.5 (THOUGHT cleanup already done globally above)
 
         // 4. AGGRESSIVE: Remove everything from the first '{' to the end.
         // We assume the model outputs text first, then the JSON block.
