@@ -133,7 +133,20 @@ async function processMessage(session, userMessage) {
                 details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
             }
 
-            const groupMessage = `🔥 ליד חם חדש (אש)! 🔥\n\nשם: ${fullName}\nטלפון: wa.me/${session.phone_number.split('@')[0]}\nפרטים: ${details}\nמועד חזרה רצוי: ${meetingTime}\n\nסוכן, נא חזור אל הלקוח! 🚀`;
+            // Phone cleaning and formatting logic from user snippet
+            const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
+            const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
+            const waLink = `wa.me/${formattedPhone}`;
+
+            // Details logic (using summary_sentence from Gemini as 'details')
+            const groupMessage = `🔥 *ליד חם חדש (אש)!* 🔥
+
+*שם*: ${fullName}
+*טלפון*: ${waLink}
+*פרטים*: ${details}
+*מועד חזרה רצוי*: ${meetingTime}
+
+*סוכן, נא חזור אל הלקוח!* 🚀`;
 
             try {
                 const ultraMsgService = require('./ultraMsgService');
