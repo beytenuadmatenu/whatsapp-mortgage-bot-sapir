@@ -125,7 +125,14 @@ async function processMessage(session, userMessage) {
 }
 
 function mapHistoryToGemini(history) {
-    return history.map(h => ({
+    // Filter out leading model messages to comply with Gemini SDK requirements
+    // The conversation history MUST start with a user message.
+    let cleanHistory = [...history];
+    while (cleanHistory.length > 0 && cleanHistory[0].role === 'assistant') {
+        cleanHistory.shift();
+    }
+
+    return cleanHistory.map(h => ({
         role: h.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: h.content }]
     }));
