@@ -31,7 +31,7 @@ async function processMessage(session, userMessage) {
         session.status = 'active';
         session.completed = false;
 
-        const resetMsg = "השיחה אופסה. אפשר להתחיל מחדש. היי, אני איילת, איך אפשר לעזור?";
+        const resetMsg = "השיחה אופסה. אפשר להתחיל מחדש. היי, אני ספיר, איך אפשר לעזור?";
         session.history.push({ role: 'assistant', content: resetMsg });
         return { session, response: resetMsg };
     }

@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-mortgage-agent",
   "version": "1.0.0",
-  "description": "WhatsApp Mortgage Agent 'Ayelet'",
+  "description": "WhatsApp Mortgage Agent 'Sapir'",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
