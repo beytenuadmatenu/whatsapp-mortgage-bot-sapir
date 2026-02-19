@@ -21,10 +21,12 @@ const sendMessage = async (chatId, message) => {
             body: message
         });
 
+        console.log(`[UltraMsg] Sending to ${to} via ${url}...`);
         const response = await axios.post(url, data, {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
-            }
+            },
+            timeout: 10000 // 10 second timeout
         });
 
         console.log(`[UltraMsg] Message sent to ${to}:`, response.data);

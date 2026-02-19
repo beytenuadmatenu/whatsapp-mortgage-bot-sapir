@@ -3,23 +3,35 @@ const config = require('./config');
 
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
 async function generateChatResponse(systemInstruction, history, message, options = {}) {
-    try {
-        // Primary Attempt: Gemini 2.0 Flash (User Requested)
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        return await runChat(model, systemInstruction, history, message, options);
-    } catch (error) {
-        console.error("Gemini 2.0 Flash failed:", error.message);
+    const retryDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-        // Fallback Attempt: Gemini 1.5 Flash Latest
+    // Attempt Primary Model (Gemini 2.0 Flash) with Retries
+    for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            console.log("Attempting fallback to Gemini 1.5 Flash Latest...");
-            const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-            return await runChat(fallbackModel, systemInstruction, history, message, options);
-        } catch (fallbackError) {
-            console.error("Gemini 1.5 Flash failed too:", fallbackError.message);
-            return `Error (Both models failed): ${fallbackError.message}`;
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            return await runChat(model, systemInstruction, history, message, options);
+        } catch (error) {
+            console.error(`Gemini 2.0 Flash failed (Attempt ${attempt}/3):`, error.message);
+            if (attempt < 3) await retryDelay(2000); // Wait 2 seconds before retry
         }
     }
+
+    // Fallback Attempt (Gemini 1.5 Flash 002) with Retries
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            console.log(`Attempting fallback to Gemini 1.5 Flash (002) - Attempt ${attempt}/3...`);
+            const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
+            return await runChat(fallbackModel, systemInstruction, history, message, options);
+        } catch (fallbackError) {
+            console.error(`Gemini 1.5 Flash failed (Attempt ${attempt}/3):`, fallbackError.message);
+            if (attempt < 3) await retryDelay(2000); // Wait 2 seconds before retry
+        }
+    }
+
+    // Final failure - Silent/Polite Return
+    // User requested "Wait a few seconds... maybe it's momentary".
+    // We already waited. If it still fails, return a polite Hebrew message.
+    return "סליחה, יש לי עומס רגעי במערכת. אני מנסה להתחבר מחדש. תוכל לכתוב לי הודעה נוספת עוד דקה?";
 }
 
 async function runChat(model, systemInstruction, history, message, options) {

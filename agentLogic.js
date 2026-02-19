@@ -140,7 +140,7 @@ async function processMessage(session, userMessage) {
 *שם*: ${fullName}
 *טלפון*: ${waLink}
 *פרטים*: ${details}
-*מועד חזרה רצוי*: ${meetingTime}
+*מועד חזרה רצוי*: ${meetingTime || 'בהקדם'}
 
 *סוכן, נא חזור אל הלקוח!* 🚀`;
 
