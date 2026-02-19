@@ -101,6 +101,10 @@ async function processMessage(session, userMessage) {
         // 3. Remove custom token |||json_start|||
         finalResponse = finalResponse.replace(/\|\|\|json_start\|\|\|/g, "");
 
+        // 3.5 Remove "THOUGHT:" or internal reasoning logs (Safety Net)
+        // Removes lines starting with THOUGHT: or THINKING:
+        finalResponse = finalResponse.replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, "");
+
         // 4. AGGRESSIVE: Remove everything from the first '{' to the end.
         // We assume the model outputs text first, then the JSON block.
         const firstBraceIndex = finalResponse.indexOf('{');
