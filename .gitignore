@@ -1,0 +1,6 @@
+node_modules
+.env
+sessions.json
+webhook_debug.log
+*.log
+.DS_Store
