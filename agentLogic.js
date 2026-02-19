@@ -82,9 +82,13 @@ async function processMessage(session, userMessage) {
         const timeKey = Object.keys(leadSummary).find(k => k.includes('time') || k.includes('moed') || k.includes('זמן') || k.includes('שעה') || k.includes('meeting'));
         const meetingTime = timeKey ? leadSummary[timeKey] : 'לא צוין';
 
-        // בדיקה: האם לשלוח הודעה לקבוצה? (רק אם ליד חדש או שהזמן השתנה)
+        // בדיקה: האם לשלוח הודעה לקבוצה? (רק אם ליד חדש או שהמועד באמת השתנה)
         const isNewLead = !session.leadSent;
-        const isTimeChanged = session.leadSent && session.lastMeetingTime !== meetingTime;
+        // Normalize both strings for comparison (remove extra spaces, punctuation)
+        const normalize = (s) => (s || '').replace(/[\s.,!?:]+/g, ' ').trim().toLowerCase();
+        const isTimeChanged = session.leadSent && normalize(session.lastMeetingTime) !== normalize(meetingTime);
+
+        console.log(`[Agent] Lead check: isNew=${isNewLead}, timeChanged=${isTimeChanged}, old="${session.lastMeetingTime}", new="${meetingTime}"`);
 
         if (isNewLead || isTimeChanged) {
             if (config.HOT_LEADS_GROUP_ID) {
