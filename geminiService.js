@@ -41,6 +41,7 @@ async function runChat(model, systemInstruction, history, message, options) {
         generationConfig: {
             temperature: options.temperature || 0.7,
             topP: options.top_p || 0.9,
+            thinkingConfig: { thinkingBudget: 0 },  // Disable thinking to save cost & prevent THOUGHT leaks
         }
     });
 
