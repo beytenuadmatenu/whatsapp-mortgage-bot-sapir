@@ -55,9 +55,15 @@ async function processMessage(session, userMessage) {
     // Call Gemini
     const geminiHistory = mapHistoryToGemini(session.history.slice(0, -1)); // History excluding current msg
 
+    // Inject Current Time/Date for accurate greetings
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
+    const dateString = now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
+    const dynamicSystemPrompt = `${systemPrompt}\n\n**Current Date/Time in Israel:** ${dateString}, ${timeString}`;
+
     console.log(`[Agent] Sending to Gemini... History length: ${session.history.length}`);
     const aiResponseText = await geminiService.generateChatResponse(
-        systemPrompt,
+        dynamicSystemPrompt,
         geminiHistory,
         userMessage, // Current message
         { temperature: 0.7, top_p: 0.9 }
