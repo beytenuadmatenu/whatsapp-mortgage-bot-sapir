@@ -92,6 +92,12 @@ async function processMessage(session, userMessage) {
         // The System Prompt provides text BEFORE the JSON. We need to strip everything from the first JSON-like structure.
 
         // Strategy: 
+        // 0. Remove "THOUGHT" blocks (internal monologue leaked by model)
+        // Matches "THOUGHT" at start, up to the end of that block (usually double newline or specifically before Hebrew text)
+        // We utilize dynamic splitting if needed, but a regex for THOUGHT ... is safest.
+        aiResponseText = aiResponseText.replace(/^THOUGHT[\s\S]*?\n\n/i, "");
+        aiResponseText = aiResponseText.replace(/^THOUGHT[\s\S]*?(?=[א-ת])/i, ""); // Safety: remove up to Hebrew
+
         // 1. Remove standard markdown json blocks
         finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "");
 
