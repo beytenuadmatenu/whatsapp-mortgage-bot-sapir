@@ -4,16 +4,16 @@ const config = require('./config');
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
 async function generateChatResponse(systemInstruction, history, message, options = {}) {
     try {
-        // Primary Attempt: Gemini 2.0 Flash
+        // Primary Attempt: Gemini 2.0 Flash (User Requested)
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         return await runChat(model, systemInstruction, history, message, options);
     } catch (error) {
         console.error("Gemini 2.0 Flash failed:", error.message);
 
-        // Fallback Attempt: Gemini 1.5 Flash
+        // Fallback Attempt: Gemini 1.5 Flash Latest
         try {
-            console.log("Attempting fallback to Gemini 1.5 Flash...");
-            const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            console.log("Attempting fallback to Gemini 1.5 Flash Latest...");
+            const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
             return await runChat(fallbackModel, systemInstruction, history, message, options);
         } catch (fallbackError) {
             console.error("Gemini 1.5 Flash failed too:", fallbackError.message);
