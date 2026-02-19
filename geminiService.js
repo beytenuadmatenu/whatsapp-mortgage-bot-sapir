@@ -47,20 +47,7 @@ async function runChat(model, systemInstruction, history, message, options) {
     console.log(`[Gemini] Sending message...`);
     const result = await chat.sendMessage(message);
     const response = await result.response;
-
-    // Gemini 2.5 Flash has a "thinking" feature that outputs internal reasoning
-    // as separate parts with { thought: true }. We must filter those out.
-    try {
-        const parts = response.candidates[0].content.parts;
-        const textParts = parts.filter(p => !p.thought);
-        const text = textParts.map(p => p.text).join('');
-        console.log(`[Gemini] Filtered ${parts.length - textParts.length} thought parts from response.`);
-        return text;
-    } catch (e) {
-        // Fallback to .text() if response structure is unexpected
-        console.warn(`[Gemini] Could not filter thought parts, using raw text:`, e.message);
-        return response.text();
-    }
+    return response.text();
 }
 
 /**
