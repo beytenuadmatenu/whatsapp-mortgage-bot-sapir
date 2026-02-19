@@ -2,30 +2,30 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const config = require('./config');
 
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+
 async function generateChatResponse(systemInstruction, history, message, options = {}) {
     const retryDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Attempt Primary Model (Gemini 2.0 Flash) with AGGRESSIVE Retries (10x)
-    // User requested "Wait until it works" because it's a PAID TIER.
-    // We will try for ~45 seconds (10 attempts * 4.5s) before giving up.
+    // Attempt Primary Model (Gemini 2.5 Flash) with AGGRESSIVE Retries (10x)
+    // User requested v2.5. We will try for ~45 seconds (10 attempts * 4.5s) before giving up.
 
     for (let attempt = 1; attempt <= 10; attempt++) {
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
             return await runChat(model, systemInstruction, history, message, options);
         } catch (error) {
-            console.error(`Gemini 2.0 Flash failed (Attempt ${attempt}/10):`, error.message);
+            console.error(`Gemini 2.5 Flash failed (Attempt ${attempt}/10):`, error.message);
             if (attempt < 10) await retryDelay(4500); // Wait 4.5 seconds before retry
         }
     }
 
-    // Fallback Attempt (Gemini 1.5 Flash 002) - Last Resort
+    // Fallback Attempt (Gemini 2.0 Flash) - Last Resort
     try {
-        console.log("Attempting fallback to Gemini 1.5 Flash (002)...");
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
+        console.log("Attempting fallback to Gemini 2.0 Flash...");
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         return await runChat(fallbackModel, systemInstruction, history, message, options);
     } catch (fallbackError) {
-        console.error("Gemini 1.5 Flash failed too:", fallbackError.message);
+        console.error("Gemini 2.0 Flash failed too:", fallbackError.message);
         // If even this fails after ~50 seconds of trying, the user is likely offline or Google is down globally.
         return "שגיאת תקשורת חמורה. נא לנסות שוב מאוחר יותר.";
     }
