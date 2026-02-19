@@ -73,15 +73,9 @@ async function processMessage(session, userMessage) {
     // We pass NO key, because the AI returns the object directly { val: ... }
     const leadSummary = geminiService.extractJson(aiResponseText);
 
-    // GLOBAL: Strip internal "THOUGHT:" reasoning from ALL responses
-    // Handles cases like: "THOUGHT: blah blah blah.Hebrew text here"
-    // Pattern: THOUGHT: followed by English text, stopping at first Hebrew char or newline
-    let finalResponse = aiResponseText
-        .replace(/THOUGHT:.*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/THINKING:.*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/REASONING:.*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/^(THOUGHT|THINKING|REASONING):.*$/gim, '')
-        .trim();
+    // SAFETY NET: Clean leaked thinking from response before sending to user.
+    // The bot speaks ONLY Hebrew. Large English blocks = leaked internal reasoning.
+    let finalResponse = cleanResponse(aiResponseText);
 
     if (leadSummary) {
         console.log(`[Agent] valid JSON found! Completing session.`);
