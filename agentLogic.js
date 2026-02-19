@@ -60,8 +60,8 @@ async function processMessage(session, userMessage) {
     );
 
     if (!aiResponseText) {
-        // Fallback if AI fails completely
-        const errorResponse = "סליחה, יש לי רגע של בלבול. תוכל לכתוב לי שוב?";
+        // Fallback if AI fails completely - EXPLICIT ERROR FOR DEBUGGING
+        const errorResponse = "⚠️ System Error: Unable to connect to Gemini API. Please check server logs for details (API Key or Model Issue).";
         session.history.push({ role: 'assistant', content: errorResponse });
         return { session, response: errorResponse };
     }
