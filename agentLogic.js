@@ -50,8 +50,7 @@ async function processMessage(session, userMessage) {
     const now = new Date();
     const timeString = now.toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
     const dateString = now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
-    const dynamicSystemPrompt = `${systemPrompt}\n\n**Current Date/Time in Israel:** ${dateString}, ${timeString}`;
-
+    const dynamicSystemPrompt = systemPrompt + "\n\n**Current Date/Time in Israel:** " + dateString + ", " + timeString;
     console.log(`[Agent] Sending to Gemini... History length: ${session.history.length}`);
     const aiResponseText = await geminiService.generateChatResponse(
         dynamicSystemPrompt,
