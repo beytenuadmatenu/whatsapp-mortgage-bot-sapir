@@ -87,12 +87,23 @@ async function processMessage(session, userMessage) {
         // Strategy: 
         // 1. Remove standard markdown json blocks
         finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "");
-        // 2. Remove just the word "json" if it appears at end of line or start of line
+
+        // 2. Remove "json" label if it appears alone or before a brace
         finalResponse = finalResponse.replace(/\bjson\b/gi, "");
-        // 3. Remove the specific object structure we asked for
-        finalResponse = finalResponse.replace(/\{[\s\S]*"LEAD_SUMMARY"[\s\S]*\}/g, "");
-        // 4. Clean up any trailing braces or newlines
-        finalResponse = finalResponse.replace(/\{[\s\S]*\}/g, "").trim();
+
+        // 3. AGGRESSIVE: Find the last occurrence of '{' and remove everything from there to the end, 
+        //    if we are sure it's part of the data block.
+        //    Since we know the model puts text FIRST and JSON LAST, we can cut off the Last JSON Block.
+        const lastBraceIndex = finalResponse.lastIndexOf('}');
+        const firstBraceIndex = finalResponse.indexOf('{');
+
+        if (firstBraceIndex !== -1 && lastBraceIndex !== -1 && lastBraceIndex > firstBraceIndex) {
+            // Check if this looks like our data block (simple heuristic)
+            finalResponse = finalResponse.substring(0, firstBraceIndex);
+        }
+
+        // 4. Cleanup trailing whitespace
+        finalResponse = finalResponse.trim();
 
         // Fallback only if absolutely empty, but we trust Gemini 2 Flash with the new prompt.
         if (finalResponse.length < 2) {
