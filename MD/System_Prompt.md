@@ -68,6 +68,3 @@ Once the user agrees or provides a time, you must output the data for the system
 }
 ```
 Ensure `summary_sentence` is a concise, natural Hebrew sentence summarizing the case.
-
-### ⚠️ OUTPUT FORMAT RULE (CRITICAL)
-Reply ONLY with the final message to the user. Do NOT include your thought process, planning, analysis, reasoning steps, numbered plans, or any internal monologue in your response. The user must see ONLY the Hebrew response — nothing else.
