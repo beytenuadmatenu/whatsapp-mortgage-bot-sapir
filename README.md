@@ -9,15 +9,16 @@ She qualifies leads, schedules appointments, and notifies the sales team — all
 
 | Feature | Description |
 |---|---|
-| 🤖 **AI Conversation** | Gemini 2.5 Flash (primary) + 2.0 Flash (fallback) with 10-retry persistence |
+| 🤖 **AI Conversation** | Gemini 2.5 Flash (primary, thinking disabled) + 2.0 Flash (fallback) with 10-retry persistence |
 | 🇮🇱 **Hebrew Only** | Politely declines other languages |
 | 🎯 **Lead Qualification** | Collects name, city, amount, purpose, property details naturally |
-| 📅 **Appointment Scheduling** | Sapir sets the exact day & time — no "a rep will call to schedule" |
+| 📅 **Appointment Scheduling** | Sapir sets the exact day, date & time — no "a rep will call to schedule" |
 | 🔥 **Hot Lead Notifications** | Sends formatted lead summary to WhatsApp group instantly |
-| 🔄 **Smart Updates** | If user reschedules, sends an *update* notification (not a duplicate) |
-| 🧠 **Thought Filtering** | Strips Gemini 2.5's internal reasoning (THOUGHT:) from client messages |
-| 🕐 **Time-Aware Greetings** | Injects real Israel time — says "ערב טוב" at night, not "בוקר טוב" |
+| 🔄 **Smart Updates** | If user reschedules, sends an *update* notification (not a duplicate). Casual messages ("תודה") don't trigger notifications |
+| 🧠 **Thinking Disabled** | `thinkingBudget: 0` prevents costly thinking tokens + safety regex strips any THOUGHT leaks |
+| 🕐 **Time-Aware Greetings** | Injects real Israel time directly into prompt — says "ערב טוב" at night, not "בוקר טוב" |
 | 🛡️ **Clean Chat** | JSON payloads are 100% hidden from the client |
+| 🔇 **Group Silence** | Bot ignores all group messages — responds only to private (direct) chats |
 
 ---
 
@@ -25,23 +26,29 @@ She qualifies leads, schedules appointments, and notifies the sales team — all
 
 ```
 User (WhatsApp) → UltraMsg Webhook → server.js → agentLogic.js → Gemini API
-                                                       ↓
-                                              Hidden JSON detected?
-                                              ↓ YES              ↓ NO
-                                    Send to Hot Leads Group    Reply to user
-                                    + Reply to user (clean)
+                                          │
+                                    Group msg? → SKIP
+                                          │
+                                   Private msg? → Process
+                                          ↓
+                                  Hidden JSON detected?
+                                  ↓ YES              ↓ NO
+                        New lead or time changed?   Reply to user
+                        ↓ YES         ↓ NO
+                   Send to Group   Skip (no duplicate)
+                   + Reply clean   + Reply clean
 ```
 
 ### Core Files
 
 | File | Purpose |
 |---|---|
-| `server.js` | Express server, webhook handler, session management |
-| `agentLogic.js` | Conversation logic, JSON extraction, group notifications, THOUGHT filtering |
-| `geminiService.js` | Gemini API calls with 10-retry fallback chain (2.5 → 2.0) |
+| `server.js` | Express server, webhook handler, session management, group message filter |
+| `agentLogic.js` | Conversation logic, JSON extraction, smart group notifications, THOUGHT filtering |
+| `geminiService.js` | Gemini API calls with 10-retry fallback chain (2.5 → 2.0), thinking disabled |
 | `ultraMsgService.js` | WhatsApp message sending via UltraMsg API |
 | `config.js` | Environment variable loader |
-| `MD/System_Prompt.md` | Sapir's persona, rules, and hidden JSON output instructions |
+| `MD/System_Prompt.md` | Sapir's persona, rules, time-aware greeting, and hidden JSON output instructions |
 
 ---
 
@@ -53,7 +60,7 @@ Create a `.env` file with the following variables:
 GEMINI_API_KEY=your_gemini_api_key
 ULTRAMSG_INSTANCE_ID=your_instance_id
 ULTRAMSG_TOKEN=your_token
-HOT_LEADS_GROUP_ID=120363424190726852@g.us
+HOT_LEADS_GROUP_ID=your_group_id@g.us
 PORT=3002
 ```
 
@@ -61,26 +68,40 @@ PORT=3002
 
 ## 🚀 How It Works
 
-1. **User messages** the bot on WhatsApp.
+1. **User messages** the bot on WhatsApp (private chat only — groups are ignored).
 2. **Sapir responds** naturally in Hebrew, collecting info one question at a time.
-3. **Meeting scheduled** — Sapir sets a specific day & time with the user.
+3. **Meeting scheduled** — Sapir sets a specific day, date & time with the user.
 4. **Hidden JSON** — The AI outputs a structured payload after the friendly closing message.
 5. **Server detects** the JSON, strips it from the user's view, and sends a formatted 🔥 notification to the **Hot Leads** WhatsApp group.
-6. **User continues** — If the user messages again (e.g., to reschedule), the conversation resumes naturally and a 🔄 *update* notification is sent to the group.
+6. **User continues** — The conversation stays open. Casual messages get natural replies without triggering notifications.
+7. **Reschedule** — If the user explicitly changes the meeting time, a 🔄 update notification is sent to the group.
 
 ---
 
 ## 🔥 Hot Leads Group Message Format
 
+**New Lead:**
 ```
 🔥 *ליד חם חדש (אש)!* 🔥
 
 *שם*: ישראל ישראלי
 *טלפון*: wa.me/972501234567
 *פרטים*: לקוח ישראל, גר בחולון. מבקש 1.2M למטרת רכישה.
-*מועד פגישה*: יום ראשון ב-10:00
+*מועד פגישה*: יום ראשון 23.2 ב-10:00
 
 *סוכן, נא לחזור אל הלקוח!* 🚀
+```
+
+**Updated Meeting:**
+```
+🔄 *עדכון מועד פגישה* 🔄
+
+*שם*: ישראל ישראלי
+*טלפון*: wa.me/972501234567
+*פרטים*: לקוח ישראל, גר בחולון. מבקש 1.2M למטרת רכישה.
+*מועד פגישה*: יום שלישי 25.2 ב-14:00
+
+*סוכן, נא לעדכן ביומן!* 📅
 ```
 
 ---
@@ -104,5 +125,7 @@ node server.js
 ## ⚠️ Important Notes
 
 - **Do NOT remove** the hidden JSON instruction from `System_Prompt.md` — it triggers the group notifications.
-- **Reset command:** Users can type `אפס את השיחה` to start fresh.
+- **Reset command:** Users can type `אפס את השיחה` or `איפוס` to start fresh.
 - **Model fallback:** If Gemini 2.5 Flash is unavailable, the system retries 10 times (≈45s) before falling back to 2.0 Flash.
+- **Thinking disabled:** `thinkingBudget: 0` in `geminiService.js` prevents THOUGHT token generation and reduces API costs.
+- **Group filter:** `server.js` skips all messages from `@g.us` addresses — the bot only responds to private chats.
