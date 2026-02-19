@@ -24,6 +24,18 @@ function createSession(phoneNumber) {
 }
 
 async function processMessage(session, userMessage) {
+    if (userMessage.trim() === 'אפס את השיחה') {
+        session.history = [];
+        session.step = 0;
+        session.data = {};
+        session.status = 'active';
+        session.completed = false;
+
+        const resetMsg = "השיחה אופסה. אפשר להתחיל מחדש. היי, אני איילת, איך אפשר לעזור?";
+        session.history.push({ role: 'assistant', content: resetMsg });
+        return { session, response: resetMsg };
+    }
+
     session.history.push({ role: 'user', content: userMessage });
 
     // Helper to detect if conversation is finished
