@@ -78,8 +78,17 @@ async function processMessage(session, userMessage) {
         session.final_data = leadSummary;
 
         // Remove JSON block from response to get the pleasant closing message
-        // The System Prompt is now instructed to provide text BEFORE the JSON.
-        finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "").replace(/\{[\s\S]*"LEAD_SUMMARY"[\s\S]*\}/g, "").trim();
+        // The System Prompt provides text BEFORE the JSON. We need to strip everything from the first JSON-like structure.
+
+        // Strategy: 
+        // 1. Remove standard markdown json blocks
+        finalResponse = aiResponseText.replace(/```json[\s\S]*?```/g, "");
+        // 2. Remove just the word "json" if it appears at end of line or start of line
+        finalResponse = finalResponse.replace(/\bjson\b/gi, "");
+        // 3. Remove the specific object structure we asked for
+        finalResponse = finalResponse.replace(/\{[\s\S]*"LEAD_SUMMARY"[\s\S]*\}/g, "");
+        // 4. Clean up any trailing braces or newlines
+        finalResponse = finalResponse.replace(/\{[\s\S]*\}/g, "").trim();
 
         // Fallback only if absolutely empty, but we trust Gemini 2 Flash with the new prompt.
         if (finalResponse.length < 2) {

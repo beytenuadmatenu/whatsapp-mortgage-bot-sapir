@@ -21,7 +21,7 @@ const sendMessage = async (chatId, message) => {
             body: message
         }, {
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/json'
             }
         });
 
