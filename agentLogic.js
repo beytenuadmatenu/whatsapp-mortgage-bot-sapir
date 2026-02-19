@@ -31,6 +31,10 @@ async function processMessage(session, userMessage) {
         session.status = 'active';
         session.completed = false;
 
+        // Add a "System Start" message from the user to anchor the history.
+        // This prevents the bot's greeting from being stripped by the SDK filter (which requires starting with 'user').
+        session.history.push({ role: 'user', content: 'התחל שיחה חדשה' });
+
         const resetMsg = "השיחה אופסה. אפשר להתחיל מחדש. היי, אני ספיר, איך אפשר לעזור?";
         session.history.push({ role: 'assistant', content: resetMsg });
         return { session, response: resetMsg };
