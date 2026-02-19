@@ -1,36 +1,32 @@
-# WhatsApp Mortgage Agent - Ayelet
+# WhatsApp Mortgage Agent - Sapir (TikTak Mortgages)
 
-AI-powered WhatsApp chatbot for mortgage customer service using Google Gemini and UltraMsg.
+**Sapir** is an AI-powered WhatsApp agent for TikTak Mortgages (טיקטק משכנתאות), designed to qualify leads and schedule appointments in **Hebrew**.
 
 ## Features
-- ✅ Hebrew conversational AI (Gemini 2.0 Flash)
-- ✅ Lead qualification & scoring (HOT/WARM/COLD)
-- ✅ UltraMsg WhatsApp integration
-- ✅ Automated data collection
+- 🗣️ **Natural Conversation:** Uses Google Gemini 2.0 Flash for human-like dialogue.
+- 🇮🇱 **Strict Hebrew Policy:** Politely declines other languages.
+- 🎯 **Lead Qualification:** Collects name, amount, purpose, and property details naturally.
+- 📅 **Appointment Scheduling:** Suggests specific time slots.
+- 🔥 **Hot Lead Notifications:** Sends formatted summary to a "Hot Leads" WhatsApp group.
+- 🛡️ **Clean Chat:** Hides technical data (JSON) from the client completely.
 
-## Environment Variables
-Set these in your deployment platform:
-```
-PORT=3002
-GEMINI_API_KEY=your_gemini_api_key_here
-ULTRAMSG_INSTANCE_ID=instance160741
-ULTRAMSG_TOKEN=your_ultramsg_token_here
-HOT_LEADS_GROUP_ID=your_whatsapp_group_id@g.us
-```
+## Configuration
+This bot requires the following Environment Variables in `.env` or Render Dashboard.
 
-## Deployment (Render.com)
-1. Connect this GitHub repository to Render
-2. Set environment variables in Render dashboard
-3. Deploy!
-4. Copy the Render URL and add `/webhook` to UltraMsg webhook settings
+## How It Works
+1. **User Chats:** The user messages the bot.
+2. **AI Responds:** "Sapir" replies naturally to collect info.
+3. **Completion:** When a meeting is set, the AI outputs a hidden JSON payload.
+4. **Action:** The server detects the JSON, strips it from the user's chat, and forwards a formatted message to the **Hot Leads Group**.
+
+## Deployment
+1. **Push to GitHub.**
+2. **Deploy on Render.**
+3. **Set Webhook:** Add `https://your-app.onrender.com/webhook` to UltraMsg settings.
 
 ## Local Development
+To run locally:
 ```bash
 npm install
-npm start
+node server.js
 ```
-
-## Tech Stack
-- Node.js + Express
-- Google Gemini AI
-- UltraMsg (WhatsApp API)

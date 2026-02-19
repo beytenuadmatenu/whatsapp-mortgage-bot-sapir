@@ -91,14 +91,10 @@ async function processMessage(session, userMessage) {
         // 2. Remove "json" label if it appears alone or before a brace
         finalResponse = finalResponse.replace(/\bjson\b/gi, "");
 
-        // 3. AGGRESSIVE: Find the last occurrence of '{' and remove everything from there to the end, 
-        //    if we are sure it's part of the data block.
-        //    Since we know the model puts text FIRST and JSON LAST, we can cut off the Last JSON Block.
-        const lastBraceIndex = finalResponse.lastIndexOf('}');
+        // 3. AGGRESSIVE: Remove everything from the first '{' to the end.
+        // We assume the model outputs text first, then the JSON block.
         const firstBraceIndex = finalResponse.indexOf('{');
-
-        if (firstBraceIndex !== -1 && lastBraceIndex !== -1 && lastBraceIndex > firstBraceIndex) {
-            // Check if this looks like our data block (simple heuristic)
+        if (firstBraceIndex !== -1) {
             finalResponse = finalResponse.substring(0, firstBraceIndex);
         }
 
