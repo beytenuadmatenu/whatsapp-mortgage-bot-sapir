@@ -76,13 +76,14 @@ async function processMessage(session, userMessage) {
         return { session, response: errorResponse };
     }
 
-    // Check for "LEAD_SUMMARY" JSON
-    const leadSummary = geminiService.extractJson(aiResponseText, 'LEAD_SUMMARY');
+    // Check for JSON (Look for any valid JSON object first)
+    // We pass NO key, because the AI returns the object directly { val: ... }
+    const leadSummary = geminiService.extractJson(aiResponseText);
 
     let finalResponse = aiResponseText;
 
     if (leadSummary) {
-        console.log(`[Agent] LEAD_SUMMARY found! Completing session.`);
+        console.log(`[Agent] valid JSON found! Completing session.`);
         session.completed = true;
         session.status = 'finished';
         session.final_data = leadSummary;
@@ -97,14 +98,17 @@ async function processMessage(session, userMessage) {
         // 2. Remove "json" label if it appears alone or before a brace
         finalResponse = finalResponse.replace(/\bjson\b/gi, "");
 
-        // 3. AGGRESSIVE: Remove everything from the first '{' to the end.
+        // 3. Remove custom token |||json_start|||
+        finalResponse = finalResponse.replace(/\|\|\|json_start\|\|\|/g, "");
+
+        // 4. AGGRESSIVE: Remove everything from the first '{' to the end.
         // We assume the model outputs text first, then the JSON block.
         const firstBraceIndex = finalResponse.indexOf('{');
         if (firstBraceIndex !== -1) {
             finalResponse = finalResponse.substring(0, firstBraceIndex);
         }
 
-        // 4. Cleanup trailing whitespace
+        // 5. Cleanup trailing whitespace and weird chars
         finalResponse = finalResponse.trim();
 
         // Fallback only if absolutely empty, but we trust Gemini 2 Flash with the new prompt.
