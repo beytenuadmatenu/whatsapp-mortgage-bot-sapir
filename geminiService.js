@@ -17,7 +17,7 @@ async function generateChatResponse(systemInstruction, history, message, options
             return await runChat(fallbackModel, systemInstruction, history, message, options);
         } catch (fallbackError) {
             console.error("Gemini 1.5 Flash failed too:", fallbackError.message);
-            return null;
+            return `Error (Both models failed): ${fallbackError.message}`;
         }
     }
 }
