@@ -75,7 +75,8 @@ Once the user agrees or provides a time, you must output the data for the system
   "full_name": "...",
   "phone": "...",
   "summary_sentence": "לקוח [Name], גר ב[City]. מבקש [Amount] למטרת [Purpose]. נכס: [Details]. בעיות בנקים: [Details].",
-  "meeting_time": "..."
+  "meeting_time": "יום [Day] [DD.MM] בשעה [HH:MM]"
 }
 ```
+**STRICT:** `meeting_time` must ALWAYS use this exact format: `יום ראשון 23.02 בשעה 10:00`. Never use ISO format (2026-02-23), never add "בבוקר/בצהריים". Always the same pattern.
 Ensure `summary_sentence` is a concise, natural Hebrew sentence summarizing the case.
