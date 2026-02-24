@@ -97,15 +97,20 @@ async function processMessage(session, userMessage) {
         const timeKey = Object.keys(leadSummary).find(k => k.includes('time') || k.includes('moed') || k.includes('זמן') || k.includes('שעה') || k.includes('meeting'));
         const meetingTime = timeKey ? leadSummary[timeKey] : 'לא צוין';
 
-        // בדיקה: האם לשלוח הודעה לקבוצה? (רק אם ליד חדש או שהמועד באמת השתנה)
+        // בדיקת סטטוס (חדש/עדכון/ביטול)
+        const statusKey = Object.keys(leadSummary).find(k => k.includes('status'));
+        const status = statusKey ? leadSummary[statusKey] : 'confirmed';
+        const isCancelled = status === 'cancelled';
+
+        // בדיקה: האם לשלוח הודעה לקבוצה? (רק אם ליד חדש או שהמועד באמת השתנה או ביטול)
         const isNewLead = !session.leadSent;
         // Normalize both strings for comparison (remove extra spaces, punctuation)
         const normalize = (s) => (s || '').replace(/[\s.,!?:]+/g, ' ').trim().toLowerCase();
         const isTimeChanged = session.leadSent && normalize(session.lastMeetingTime) !== normalize(meetingTime);
 
-        console.log(`[Agent] Lead check: isNew=${isNewLead}, timeChanged=${isTimeChanged}, old="${session.lastMeetingTime}", new="${meetingTime}"`);
+        console.log(`[Agent] Lead check: isNew=${isNewLead}, timeChanged=${isTimeChanged}, cancelled=${isCancelled}, old="${session.lastMeetingTime}", new="${meetingTime}"`);
 
-        if (isNewLead || isTimeChanged) {
+        if (isNewLead || isTimeChanged || isCancelled) {
             if (config.HOT_LEADS_GROUP_ID) {
                 // חילוץ שם
                 const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
@@ -127,25 +132,40 @@ async function processMessage(session, userMessage) {
                 const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
                 const waLink = `wa.me/${formattedPhone}`;
 
-                // בחירת כותרת (חדש או עדכון)
-                const emojiHeader = isNewLead ? "🔥 *ליד חם חדש (אש)!* 🔥" : "🔄 *עדכון מועד פגישה* 🔄";
+                // בחירת כותרת (חדש / עדכון / ביטול)
+                let emojiHeader, footerMessage;
+                if (isCancelled) {
+                    emojiHeader = "❌ *ביטול פגישה* ❌";
+                    footerMessage = "*סוכן, הפגישה בוטלה!* ⚠️";
+                } else if (isNewLead) {
+                    emojiHeader = "🔥 *ליד חם חדש (אש)!* 🔥";
+                    footerMessage = "*סוכן, נא לחזור אל הלקוח!* 🚀";
+                } else {
+                    emojiHeader = "🔄 *עדכון מועד פגישה* 🔄";
+                    footerMessage = "*סוכן, נא לעדכן ביומן!* 📅";
+                }
 
                 const groupMessage = `${emojiHeader}
 
 *שם*: ${fullName}
 *טלפון*: ${waLink}
 *פרטים*: ${details}
-*מועד פגישה*: ${meetingTime}
+*מועד פגישה*: ${isCancelled ? 'בוטל' : meetingTime}
 
-${isNewLead ? '*סוכן, נא לחזור אל הלקוח!* 🚀' : '*סוכן, נא לעדכן ביומן!* 📅'}`;
+${footerMessage}`;
 
                 try {
                     const ultraMsgService = require('./ultraMsgService');
                     ultraMsgService.sendMessage(config.HOT_LEADS_GROUP_ID, groupMessage);
 
-                    // עדכון מצב הסשן כדי למנוע כפילויות
-                    session.leadSent = true;
-                    session.lastMeetingTime = meetingTime;
+                    // עדכון מצב הסשן
+                    if (isCancelled) {
+                        session.leadSent = false;
+                        session.lastMeetingTime = null;
+                    } else {
+                        session.leadSent = true;
+                        session.lastMeetingTime = meetingTime;
+                    }
                 } catch (e) {
                     console.error("[Agent] Group notification failed:", e);
                 }
