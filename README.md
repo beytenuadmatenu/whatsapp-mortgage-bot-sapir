@@ -1,6 +1,8 @@
-# 🏠 Sapir - WhatsApp Mortgage Agent (TikTak Mortgages)
+# 🏠 Sapir - WhatsApp Mortgage Agent (Admatenu Beitenu Mortgages)
 
-**Sapir** (ספיר) is an AI-powered WhatsApp chatbot for **TikTak Mortgages** (טיקטק משכנתאות).  
+> **אדמתנו ביתנו - הבית הפיננסי של החברה העברית בישראל**
+
+**Sapir** (ספיר) is an AI-powered WhatsApp chatbot for **Admatenu Beitenu Mortgages** (אדמתנו ביתנו משכנתאות).  
 She qualifies leads, schedules appointments, and notifies the sales team — all in **Hebrew**, 24/7.
 
 ---

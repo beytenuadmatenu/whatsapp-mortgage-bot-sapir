@@ -9,7 +9,21 @@ try {
     systemPrompt = fs.readFileSync(path.join(__dirname, 'MD', 'System_Prompt.md'), 'utf8');
 } catch (err) {
     console.error("Warning: Could not read System_Prompt.md. Using default.", err);
-    systemPrompt = "You are Ayelet, a mortgage agent.";
+    systemPrompt = "You are Sapir, a mortgage agent at Admatenu Beitenu Mortgages.";
+}
+
+// Load Company Knowledge
+let companyKnowledge = "";
+try {
+    companyKnowledge = fs.readFileSync(path.join(__dirname, 'MD', 'Company_Knowledge.md'), 'utf8');
+    console.log("[Agent] Company knowledge loaded successfully.");
+} catch (err) {
+    console.error("Warning: Could not read Company_Knowledge.md.", err);
+}
+
+// Combine system prompt with company knowledge
+if (companyKnowledge) {
+    systemPrompt += "\n\n---\n\n" + companyKnowledge;
 }
 
 function createSession(phoneNumber) {
