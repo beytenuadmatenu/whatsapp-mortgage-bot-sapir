@@ -1,6 +1,6 @@
 # 🏠 Sapir - WhatsApp Mortgage Agent (Admatenu Beitenu Mortgages)
 
-> **אדמתנו ביתנו - הבית הפיננסי של החברה העברית בישראל**
+> **אדמתנו ביתנו - הבית הפיננסי של החברה הערבית בישראל**
 
 **Sapir** (ספיר) is an AI-powered WhatsApp chatbot for **Admatenu Beitenu Mortgages** (אדמתנו ביתנו משכנתאות).  
 She qualifies leads, schedules appointments, and notifies the sales team — all in **Hebrew**, 24/7.
