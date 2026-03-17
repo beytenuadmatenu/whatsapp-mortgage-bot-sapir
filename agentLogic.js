@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const geminiService = require('./geminiService');
+const dbService = require('./dbService');
 const config = require('./config');
 
 // Load System Prompt
@@ -166,6 +167,16 @@ ${footerMessage}`;
                         session.leadSent = true;
                         session.lastMeetingTime = meetingTime;
                     }
+
+                    // שמירת הליד במסד הנתונים (Supabase CRM)
+                    await dbService.upsertLead({
+                        phone: cleanPhone,
+                        full_name: fullName,
+                        summary_sentence: details,
+                        meeting_time: meetingTime,
+                        status: isCancelled ? 'cancelled' : 'confirmed'
+                    });
+
                 } catch (e) {
                     console.error("[Agent] Group notification failed:", e);
                 }
