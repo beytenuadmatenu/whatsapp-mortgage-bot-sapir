@@ -112,24 +112,23 @@ async function processMessage(session, userMessage) {
         console.log(`[Agent] Lead check: isNew=${isNewLead}, timeChanged=${isTimeChanged}, cancelled=${isCancelled}, old="${session.lastMeetingTime}", new="${meetingTime}"`);
 
         if (isNewLead || isTimeChanged || isCancelled) {
+            // --- הכנת הנתונים (מחוץ לבלוק של הקבוצה כדי שיהיה זמין לכולם) ---
+            const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
+            const fullName = fullNameKey ? leadSummary[fullNameKey] : (session.data.full_name || 'לקוח');
+
+            const summaryKey = Object.keys(leadSummary).find(k => k.includes('summary') || k.includes('sentence') || k.includes('פרטים'));
+            let details = summaryKey ? leadSummary[summaryKey] : '';
+            if (!details) {
+                const city = session.data.city || leadSummary['city'] || leadSummary['City of Residence'] || 'לא ידוע';
+                const amount = session.data.amount || leadSummary['amount'] || leadSummary['Amount Requested'] || 'לא ידוע';
+                const purpose = session.data.purpose || leadSummary['purpose'] || leadSummary['Purpose of Loan'] || 'לא ידוע';
+                details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
+            }
+
+            const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
+
             if (config.HOT_LEADS_GROUP_ID) {
-                // חילוץ שם
-                const fullNameKey = Object.keys(leadSummary).find(k => k.includes('name') || k.includes('שם'));
-                const fullName = fullNameKey ? leadSummary[fullNameKey] : (session.data.full_name || 'לקוח');
-
-                // חילוץ סיכום/פרטים
-                const summaryKey = Object.keys(leadSummary).find(k => k.includes('summary') || k.includes('sentence') || k.includes('פרטים'));
-                let details = summaryKey ? leadSummary[summaryKey] : '';
-
-                if (!details) {
-                    const city = session.data.city || leadSummary['city'] || leadSummary['City of Residence'] || 'לא ידוע';
-                    const amount = session.data.amount || leadSummary['amount'] || leadSummary['Amount Requested'] || 'לא ידוע';
-                    const purpose = session.data.purpose || leadSummary['purpose'] || leadSummary['Purpose of Loan'] || 'לא ידוע';
-                    details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
-                }
-
                 // פורמט טלפון ולינק לוואטסאפ
-                const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
                 const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
                 const waLink = `wa.me/${formattedPhone}`;
 
@@ -168,20 +167,24 @@ ${footerMessage}`;
                         session.lastMeetingTime = meetingTime;
                     }
 
-                    // שמירת הליד במסד הנתונים (Supabase CRM)
-                    console.log(`[Agent] Calling upsertLead for ${cleanPhone}...`);
-                    const success = await dbService.upsertLead({
-                        phone: cleanPhone,
-                        full_name: fullName,
-                        summary_sentence: details,
-                        meeting_time: meetingTime,
-                        status: isCancelled ? 'cancelled' : 'confirmed'
-                    });
-                    console.log(`[Agent] upsertLead result: ${success ? 'Success' : 'Failed'}`);
-
                 } catch (e) {
-                    console.error("[Agent] Group notification or DB update failed:", e);
+                    console.error("[Agent] Group notification failed:", e);
                 }
+            }
+
+            // --- שמירת הליד במסד הנתונים (תמיד, גם אם אין קבוצה) ---
+            try {
+                console.log(`[Agent] Calling upsertLead for ${cleanPhone}...`);
+                const success = await dbService.upsertLead({
+                    phone: cleanPhone,
+                    full_name: fullName,
+                    summary_sentence: details,
+                    meeting_time: isCancelled ? 'בוטל' : meetingTime,
+                    status: isCancelled ? 'cancelled' : 'confirmed'
+                });
+                console.log(`[Agent] upsertLead result: ${success ? 'Success' : 'Failed'}`);
+            } catch (dbError) {
+                console.error("[Agent] Database update failed:", dbError);
             }
         }
 

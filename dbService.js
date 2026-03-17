@@ -9,9 +9,21 @@ let supabase = null;
 
 if (supabaseUrl && supabaseServiceKey) {
     supabase = createClient(supabaseUrl, supabaseServiceKey);
-    console.log('[Supabase] Initialized successfully.');
+    console.log('[Supabase] Initialized with URL:', supabaseUrl);
+    console.log('[Supabase] Service Key (first 10 chars):', supabaseServiceKey.substring(0, 10) + '...');
+    
+    // Quick connection test
+    supabase.from('leads').select('count', { count: 'exact', head: true })
+        .then(({ count, error }) => {
+            if (error) {
+                console.error('[Supabase] Connection test failed:', error.message);
+                console.error('[Supabase] Full error:', JSON.stringify(error, null, 2));
+            } else {
+                console.log('[Supabase] Connection test successful. Current lead count:', count);
+            }
+        });
 } else {
-    console.warn('[Supabase] Warning: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env. DB features will be disabled.');
+    console.warn('[Supabase] Warning: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. URL present:', !!supabaseUrl, 'Key present:', !!supabaseServiceKey);
 }
 
 /**
