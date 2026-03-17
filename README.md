@@ -17,6 +17,7 @@ She qualifies leads, schedules appointments, and notifies the sales team — all
 | 📅 **Appointment Scheduling** | Sapir sets the exact day, date & time — no "a rep will call to schedule" |
 | 🔥 **Hot Lead Notifications** | Sends formatted lead summary to WhatsApp group instantly |
 | 🔄 **Smart Updates** | If user reschedules, sends an *update* notification (not a duplicate). Casual messages ("תודה") don't trigger notifications |
+| 🗄️ **Supabase Sync** | Instantly saves name, phone, AI summary, and meeting time to the CRM database |
 | 🧠 **Thinking Disabled** | `thinkingBudget: 0` prevents costly thinking tokens + safety regex strips any THOUGHT leaks |
 | 🕐 **Time-Aware Greetings** | Injects real Israel time directly into prompt — says "ערב טוב" at night, not "בוקר טוב" |
 | 🛡️ **Clean Chat** | JSON payloads are 100% hidden from the client |
@@ -63,6 +64,8 @@ GEMINI_API_KEY=your_gemini_api_key
 ULTRAMSG_INSTANCE_ID=your_instance_id
 ULTRAMSG_TOKEN=your_token
 HOT_LEADS_GROUP_ID=your_group_id@g.us
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 PORT=3002
 ```
 
