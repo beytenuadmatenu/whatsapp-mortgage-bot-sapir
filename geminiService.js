@@ -11,10 +11,10 @@ async function generateChatResponse(systemInstruction, history, message, options
 
     for (let attempt = 1; attempt <= 10; attempt++) {
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             return await runChat(model, systemInstruction, history, message, options);
         } catch (error) {
-            console.error(`Gemini 2.5 Flash failed (Attempt ${attempt}/10):`, error.message);
+            console.error(`Gemini 2.0 Flash failed (Attempt ${attempt}/10):`, error.message);
             if (attempt < 10) await retryDelay(4500); // Wait 4.5 seconds before retry
         }
     }

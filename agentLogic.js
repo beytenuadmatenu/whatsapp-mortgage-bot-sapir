@@ -80,13 +80,30 @@ async function processMessage(session, userMessage) {
         return { session, response: errorResponse };
     }
 
-    // --- 1. ניקוי מחשבות (Reasoning) של Gemini 2.5 Flash ---
-    // The AI outputs "THOUGHT" or "THOUGHT:" (with or without colon) followed by English reasoning,
-    // then the Hebrew response. We strip everything from THOUGHT to the first Hebrew character.
-    let finalResponse = aiResponseText
-        .replace(/(THOUGHT|THINKING|REASONING):?[\s\S]*?(?=[\u0590-\u05FF])/gi, '')
-        .replace(/^(THOUGHT|THINKING|REASONING):?.*$/gim, '')
-        .trim();
+    // --- 1. ניקוי מחשבות (Reasoning) של Gemini ---
+    // The AI might output "THOUGHT", "ANALYSIS", etc. in English followed by Hebrew.
+    // We strip everything until the first Hebrew character if it's likely internal monologue.
+    let finalResponse = aiResponseText;
+
+    // 1.1 Remove lines starting with common internal monologue markers
+    finalResponse = finalResponse.replace(/^(THOUGHT|THINKING|REASONING|ANALYSIS|PLAN|INTERNAL|NOTES|SYSTEM):?[\s\S]*?(?=[\u0590-\u05FF])/gi, '');
+    
+    // 1.2 Remove any standalone lines that are purely English internal monologue
+    finalResponse = finalResponse.replace(/^(THOUGHT|THINKING|REASONING|ANALYSIS|PLAN|INTERNAL|NOTES|SYSTEM):?.*$/gim, '');
+
+    // 1.3 Aggressive preamble stripping: If the message starts with English for more than 15 chars, 
+    // and Hebrew follows, and it's not a technical string or JSON, strip it.
+    const firstHebrewIdx = finalResponse.search(/[\u0590-\u05FF]/);
+    if (firstHebrewIdx > 15) {
+        const preamble = finalResponse.substring(0, firstHebrewIdx);
+        // Don't strip if it looks like JSON or contains technical markers
+        if (!preamble.includes('{') && !preamble.includes('|||') && !preamble.includes('```')) {
+            console.log(`[Agent] Stripping suspected English internal preamble (${firstHebrewIdx} chars)`);
+            finalResponse = finalResponse.substring(firstHebrewIdx);
+        }
+    }
+
+    finalResponse = finalResponse.trim();
 
     // בדיקת JSON
     const leadSummary = geminiService.extractJson(aiResponseText);
