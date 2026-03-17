@@ -75,7 +75,71 @@ async function upsertLead(leadData) {
     }
 }
 
+/**
+ * Parses a Hebrew date string in the format "יום [שם] DD.MM.YYYY בשעה HH:MM"
+ * or "DD.MM.YYYY בשעה HH:MM"
+ */
+function parseHebrewDate(str) {
+    if (!str) return null;
+    const dateMatch = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    const timeMatch = str.match(/(\d{1,2}):(\d{1,2})/);
+    if (!dateMatch || !timeMatch) return null;
+
+    const [_, d, m, y] = dateMatch;
+    const [__, hh, mm] = timeMatch;
+    return new Date(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(mm));
+}
+
+/**
+ * Fetches leads that have a meeting in the next minutesLimit
+ * @param {number} minutesMin Minimum minutes from now
+ * @param {number} minutesMax Maximum minutes from now
+ */
+async function getUpcomingMeetings(minutesMin, minutesMax) {
+    if (!supabase) return [];
+    
+    try {
+        // Fetch all scheduled meetings (simplified, we'll filter in JS to handle Hebrew dates)
+        const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('status', 'MEETING_SCHEDULED');
+
+        if (error) throw error;
+
+        const now = new Date();
+        return data.filter(lead => {
+            const meetingDate = parseHebrewDate(lead.meeting_time);
+            if (!meetingDate) return false;
+
+            const diffMinutes = (meetingDate - now) / (1000 * 60);
+            return diffMinutes >= minutesMin && diffMinutes <= minutesMax;
+        });
+    } catch (err) {
+        console.error('[Supabase] Error fetching upcoming meetings:', err.message);
+        return [];
+    }
+}
+
+/**
+ * Marks a lead as reminded
+ */
+async function markLeadAsReminded(phone) {
+    if (!supabase) return false;
+    try {
+        const { error } = await supabase
+            .from('leads')
+            .update({ reminder_sent_at: new Date().toISOString() })
+            .eq('phone', phone);
+        return !error;
+    } catch (err) {
+        return false;
+    }
+}
+
 module.exports = {
     supabase,
-    upsertLead
+    upsertLead,
+    getUpcomingMeetings,
+    markLeadAsReminded
 };

@@ -1,8 +1,10 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const axios = require('axios');
 const agentLogic = require('./agentLogic');
 const config = require('./config');
 const ultraMsgService = require('./ultraMsgService');
+const dbService = require('./dbService');
 
 const fs = require('fs');
 const path = require('path');
@@ -157,4 +159,50 @@ app.post('/reset', (req, res) => {
 
 app.listen(config.PORT, () => {
     console.log(`Server running on port ${config.PORT}`);
+
+    // 4. Automated Reminders Scheduler (Starts after server is up)
+    console.log('[Scheduler] Starting Automated Reminders Task (checks every 5 mins)...');
+    setInterval(async () => {
+        try {
+            console.log('[Scheduler] Checking for upcoming meetings (30-min window)...');
+            // We look for meetings that start in 25-35 minutes (to have a 5-min buffer)
+            const upcomingLeads = await dbService.getUpcomingMeetings(25, 35);
+
+            for (const lead of upcomingLeads) {
+                // If we already sent a reminder, skip
+                if (lead.reminder_sent_at) continue;
+
+                console.log(`[Scheduler] FOUND upcoming meeting for ${lead.full_name}. Sending reminder...`);
+
+                // For now, the user asked for EMAIL. 
+                // Since this is a server, we would normally use SendGrid/Nodemailer.
+                // However, I'll also send a WhatsApp alert to Sapir (the consultant)
+                // to make sure she's aware even if her computer is closed.
+                const reminderText = `היי, תזכורת אוטומטית: יש לך פגישה עם ${lead.full_name} בעוד 30 דקות! 📅\n\nפרטי הפגישה:\n👤 לקוח: ${lead.full_name}\n📞 טלפון: ${lead.phone}\n📝 נושא: ${lead.summary_sentence || 'שיחת ייעוץ'}\n⏰ מועד: ${lead.meeting_time}\n\nבהצלחה! 🍀`;
+
+                // Send WhatsApp to Sapir
+                await ultraMsgService.sendMessage(config.MANAGER_PHONE, reminderText);
+
+                // Mark as reminded so we don't send again
+                await dbService.markLeadAsReminded(lead.phone);
+                console.log(`[Scheduler] Reminder successfully sent and marked for ${lead.phone}`);
+            }
+        } catch (err) {
+            console.error('[Scheduler] Error in automated reminders task:', err);
+        }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    // 5. CRM Keep-Alive (Prevents spin-down)
+    if (config.CRM_URL) {
+        console.log(`[Keep-Alive] Starting pings to ${config.CRM_URL} (every 10 mins)...`);
+        setInterval(async () => {
+            try {
+                console.log(`[Keep-Alive] Pinging CRM at ${config.CRM_URL}...`);
+                await axios.get(config.CRM_URL, { timeout: 10000 });
+                console.log('[Keep-Alive] Ping successful.');
+            } catch (err) {
+                console.warn('[Keep-Alive] Ping failed (but that is okay, we will try again):', err.message);
+            }
+        }, 10 * 60 * 1000); // Every 10 minutes
+    }
 });

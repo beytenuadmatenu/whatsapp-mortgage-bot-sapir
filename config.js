@@ -7,4 +7,7 @@ module.exports = {
     ULTRAMSG_TOKEN: process.env.ULTRAMSG_TOKEN,
     ULTRAMSG_API_URL: `https://api.ultramsg.com/${process.env.ULTRAMSG_INSTANCE_ID}/`,
     HOT_LEADS_GROUP_ID: process.env.HOT_LEADS_GROUP_ID,
+    MANAGER_PHONE: process.env.MANAGER_PHONE || "972545554588@c.us",
+    MANAGER_EMAIL: process.env.MANAGER_EMAIL || "admateinu.beitenu@gmail.com",
+    CRM_URL: process.env.CRM_URL || "https://crm-dashboard-paio.onrender.com/",
 };
