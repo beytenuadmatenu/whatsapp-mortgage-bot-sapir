@@ -31,6 +31,8 @@ async function upsertLead(leadData) {
             return false;
         }
 
+        console.log('[Supabase] Attempting to upsert lead data:', JSON.stringify(leadData, null, 2));
+
         const { data, error } = await supabase
             .from('leads')
             .upsert({
@@ -48,10 +50,11 @@ async function upsertLead(leadData) {
 
         if (error) {
             console.error('[Supabase] Error upserting lead:', error.message);
+            console.error('[Supabase] Error Details:', JSON.stringify(error, null, 2));
             return false;
         }
 
-        console.log(`[Supabase] Lead ${leadData.phone} saved/updated successfully.`);
+        console.log(`[Supabase] Lead ${leadData.phone} saved/updated successfully. Response:`, JSON.stringify(data, null, 2));
         return true;
     } catch (err) {
         console.error('[Supabase] Exception in upsertLead:', err);

@@ -169,16 +169,18 @@ ${footerMessage}`;
                     }
 
                     // שמירת הליד במסד הנתונים (Supabase CRM)
-                    await dbService.upsertLead({
+                    console.log(`[Agent] Calling upsertLead for ${cleanPhone}...`);
+                    const success = await dbService.upsertLead({
                         phone: cleanPhone,
                         full_name: fullName,
                         summary_sentence: details,
                         meeting_time: meetingTime,
                         status: isCancelled ? 'cancelled' : 'confirmed'
                     });
+                    console.log(`[Agent] upsertLead result: ${success ? 'Success' : 'Failed'}`);
 
                 } catch (e) {
-                    console.error("[Agent] Group notification failed:", e);
+                    console.error("[Agent] Group notification or DB update failed:", e);
                 }
             }
         }
