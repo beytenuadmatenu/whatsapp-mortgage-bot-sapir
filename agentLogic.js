@@ -125,11 +125,13 @@ async function processMessage(session, userMessage) {
                 details = `לקוח ${fullName}, גר ב${city}. מבקש ${amount} למטרת ${purpose}.`;
             }
 
-            const cleanPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
+            const technicalPhone = session.phone_number.split('@')[0].replace(/\D/g, '');
+            const cleanPhone = technicalPhone.startsWith('972') ? '0' + technicalPhone.substring(3) : technicalPhone;
 
             if (config.HOT_LEADS_GROUP_ID) {
                 // פורמט טלפון ולינק לוואטסאפ
-                const formattedPhone = cleanPhone.startsWith('0') ? `972${cleanPhone.substring(1)}` : cleanPhone;
+                const technicalClean = technicalPhone;
+                const formattedPhone = technicalClean.startsWith('0') ? `972${technicalClean.substring(1)}` : technicalClean;
                 const waLink = `wa.me/${formattedPhone}`;
 
                 // בחירת כותרת (חדש / עדכון / ביטול)

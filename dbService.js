@@ -54,6 +54,7 @@ async function upsertLead(leadData) {
                 meeting_time: leadData.meeting_time || null,
                 status: leadData.status === 'cancelled' ? 'CANCELLED' 
                         : (leadData.meeting_time ? 'MEETING_SCHEDULED' : 'NEW_LEAD'),
+                // agent_notes will remain untouched on upsert if not sent
             }, { 
                 onConflict: 'phone',
                 ignoreDuplicates: false
