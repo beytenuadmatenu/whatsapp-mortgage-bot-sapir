@@ -165,8 +165,8 @@ app.listen(config.PORT, () => {
     setInterval(async () => {
         try {
             console.log('[Scheduler] Checking for upcoming meetings (30-min window)...');
-            // We look for meetings that start in 25-35 minutes (to have a 5-min buffer)
-            const upcomingLeads = await dbService.getUpcomingMeetings(25, 35);
+            // We look for meetings that start in the next 35 minutes
+            const upcomingLeads = await dbService.getUpcomingMeetings(35);
 
             for (const lead of upcomingLeads) {
                 // If we already sent a reminder, skip

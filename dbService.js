@@ -91,19 +91,19 @@ function parseHebrewDate(str) {
 }
 
 /**
- * Fetches leads that have a meeting in the next minutesLimit
- * @param {number} minutesMin Minimum minutes from now
+ * Fetches leads that have a meeting in the next minutesMax
  * @param {number} minutesMax Maximum minutes from now
  */
-async function getUpcomingMeetings(minutesMin, minutesMax) {
+async function getUpcomingMeetings(minutesMax) {
     if (!supabase) return [];
     
     try {
-        // Fetch all scheduled meetings (simplified, we'll filter in JS to handle Hebrew dates)
+        // Fetch all scheduled meetings that haven't been reminded yet
         const { data, error } = await supabase
             .from('leads')
             .select('*')
-            .eq('status', 'MEETING_SCHEDULED');
+            .eq('status', 'MEETING_SCHEDULED')
+            .is('reminder_sent_at', null);
 
         if (error) throw error;
 
@@ -113,7 +113,8 @@ async function getUpcomingMeetings(minutesMin, minutesMax) {
             if (!meetingDate) return false;
 
             const diffMinutes = (meetingDate - now) / (1000 * 60);
-            return diffMinutes >= minutesMin && diffMinutes <= minutesMax;
+            // Catch anything between now and 35 minutes from now
+            return diffMinutes > 0 && diffMinutes <= minutesMax;
         });
     } catch (err) {
         console.error('[Supabase] Error fetching upcoming meetings:', err.message);
