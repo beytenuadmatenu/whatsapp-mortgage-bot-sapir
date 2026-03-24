@@ -63,9 +63,13 @@ async function processMessage(session, userMessage) {
     const geminiHistory = mapHistoryToGemini(session.history.slice(0, -1));
 
     const now = new Date();
+    const hebrewDays = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
     const timeString = now.toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
     const dateString = now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
-    const dynamicSystemPrompt = systemPrompt.replace('__CURRENT_TIME__', dateString + ', ' + timeString);
+    const fullDateString = `יום ${hebrewDays[now.getDay()]}, ${dateString}`;
+    const dynamicSystemPrompt = systemPrompt
+        .replace(/__CURRENT_TIME__/g, timeString)
+        .replace(/__CURRENT_DATE__/g, fullDateString);
     console.log(`[Agent] Sending to Gemini... History length: ${session.history.length}`);
     const aiResponseText = await geminiService.generateChatResponse(
         dynamicSystemPrompt,
