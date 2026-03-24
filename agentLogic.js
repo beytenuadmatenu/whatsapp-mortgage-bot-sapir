@@ -27,8 +27,8 @@ if (companyKnowledge) {
     systemPrompt += "\n\n---\n\n" + companyKnowledge;
 }
 
-function createSession(phoneNumber) {
-    return {
+function createSession(phoneNumber, existingLead = null) {
+    const session = {
         phone_number: phoneNumber,
         step: 0,
         data: {},
@@ -38,6 +38,32 @@ function createSession(phoneNumber) {
         leadSent: false,        // שומר האם הליד כבר נשלח פעם אחת
         lastMeetingTime: null   // שומר את זמן הפגישה האחרון שנשלח לקבוצה
     };
+
+    if (existingLead && (existingLead.summary_sentence || existingLead.meeting_time)) {
+        console.log(`[Agent] Restoring context for ${phoneNumber} from DB.`);
+        session.leadSent = true; 
+        session.lastMeetingTime = existingLead.meeting_time;
+        session.data = {
+            full_name: existingLead.full_name,
+            summary_sentence: existingLead.summary_sentence
+        };
+        // Ensure the bot doesn't think it's a completely cold lead
+        session.completed = existingLead.status !== 'CANCELLED';
+
+        const contextMsg = `הודעת מערכת חשובה: זיהינו שהלקוח הזה דיבר איתך בעבר או שכבר קבע פגישה.
+אלו הנתונים שנשמרו מהשיחה הקודמת:
+שם הלקוח: ${existingLead.full_name || 'לא ידוע'}
+סטטוס רשום במערכת: ${existingLead.status === 'MEETING_SCHEDULED' ? 'נקבעה פגישה' : existingLead.status}
+סיכום שעשית בשיחה הקודמת: ${existingLead.summary_sentence || 'אין'}
+מועד פגישה אחרון שנקבע: ${existingLead.meeting_time || 'לא נקבע'}
+
+עלייך להמשיך את השיחה מהנקודה הזו. אם הלקוח סתם רושם משהו, תתייחסי לזה שאת זוכרת אותו. אם הוא מבקש לשנות מועד פגישה - הרגישי חופשי לעשות זאת על בסיס ההיסטוריה הזו.`;
+        
+        session.history.push({ role: 'user', content: contextMsg });
+        session.history.push({ role: 'assistant', content: "הבנתי! קיבלתי את נתוני הלקוח ואמשיך את השיחה איתו מאותה נקודה, בידיעה גמורה של מה שסוכם ונקבע." });
+    }
+
+    return session;
 }
 
 async function processMessage(session, userMessage) {

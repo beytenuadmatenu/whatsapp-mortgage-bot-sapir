@@ -44,8 +44,7 @@ app.get('/health', (req, res) => {
 app.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
-        // Super Debug Logging
-        fs.appendFileSync('webhook_debug.log', `\n--- WEBHOOK RECEIVED [${new Date().toISOString()}] ---\n${JSON.stringify(body, null, 2)}\n`);
+        // Removed debug logging that exposed PII
 
         // Log basic info about the webhook
         console.log(`[Webhook] Received event: ${body.event_type || body.event || body.typeWebhook} from ${body.data?.from || body.senderData?.chatId}`);
@@ -102,13 +101,25 @@ app.post('/webhook', async (req, res) => {
             if (processedMsgIds.size > 1000) processedMsgIds.clear();
             processedMsgIds.add(msgId);
 
-            // 2. Initialize or Get Session
             if (!sessions[chatId]) {
                 console.log(`[Server] Creating NEW session for ${chatId}`);
-                sessions[chatId] = agentLogic.createSession(chatId);
+                
+                // Try to fetch existing history from Supabase
+                const technicalPhone = chatId.split('@')[0].replace(/\D/g, '');
+                const cleanPhone = technicalPhone.startsWith('972') ? '0' + technicalPhone.substring(3) : technicalPhone;
+                
+                let existingLead = null;
+                try {
+                    existingLead = await dbService.getLeadByPhone(cleanPhone);
+                } catch (e) {
+                    console.error("[Server] Could not fetch previous lead data:", e);
+                }
+
+                sessions[chatId] = agentLogic.createSession(chatId, existingLead);
             }
             const session = sessions[chatId];
-            fs.appendFileSync('webhook_debug.log', `[Server] State Before: chatId=${chatId}, Step=${session.step}, Retry=${session.retryCount || 0}\n`);
+            // Log state changes without saving to disk in cleartext
+            console.log(`[Server] State Before: chatId=${chatId}, Step=${session.step}, Retry=${session.retryCount || 0}`);
 
             // 3. Concurrency Lock
             if (session.isProcessing) {
@@ -123,7 +134,8 @@ app.post('/webhook', async (req, res) => {
                 // Update session state
                 sessions[chatId] = result.session;
                 saveSessions();
-                fs.appendFileSync('webhook_debug.log', `[Server] State After: chatId=${chatId}, NewStep=${result.session.step}, NewRetry=${result.session.retryCount}\n`);
+                // State change logging without saving to disk
+                console.log(`[Server] State After: chatId=${chatId}, NewStep=${result.session.step}, NewRetry=${result.session.retryCount}`);
                 console.log(`[Server] After process: ${chatId} - New Step: ${result.session.step}, New Retry: ${result.session.retryCount}`);
 
                 // Send response via UltraMsg
@@ -192,17 +204,5 @@ app.listen(config.PORT, () => {
         }
     }, 5 * 60 * 1000); // Every 5 minutes
 
-    // 5. CRM Keep-Alive (Prevents spin-down)
-    if (config.CRM_URL) {
-        console.log(`[Keep-Alive] Starting pings to ${config.CRM_URL} (every 10 mins)...`);
-        setInterval(async () => {
-            try {
-                console.log(`[Keep-Alive] Pinging CRM at ${config.CRM_URL}...`);
-                await axios.get(config.CRM_URL, { timeout: 10000 });
-                console.log('[Keep-Alive] Ping successful.');
-            } catch (err) {
-                console.warn('[Keep-Alive] Ping failed (but that is okay, we will try again):', err.message);
-            }
-        }, 10 * 60 * 1000); // Every 10 minutes
-    }
+    // No need to ping CRM to keep it awake anymore
 });

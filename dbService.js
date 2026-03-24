@@ -138,9 +138,35 @@ async function markLeadAsReminded(phone) {
     }
 }
 
+/**
+ * Fetch an existing lead by phone number
+ */
+async function getLeadByPhone(phone) {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('phone', phone)
+            .single();
+            
+        if (error) {
+            if (error.code !== 'PGRST116') { // PGRST116 is "No rows found", perfectly normal
+                console.error('[Supabase] Error fetching lead by phone:', error.message);
+            }
+            return null;
+        }
+        return data;
+    } catch (err) {
+        console.error('[Supabase] Exception in getLeadByPhone:', err);
+        return null;
+    }
+}
+
 module.exports = {
     supabase,
     upsertLead,
     getUpcomingMeetings,
-    markLeadAsReminded
+    markLeadAsReminded,
+    getLeadByPhone
 };
