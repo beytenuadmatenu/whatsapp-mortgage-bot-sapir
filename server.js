@@ -115,6 +115,23 @@ app.post('/webhook', async (req, res) => {
                     console.error("[Server] Could not fetch previous lead data:", e);
                 }
 
+                // --- EARLY LEAD CAPTURE ---
+                if (!existingLead) {
+                    const pushName = body.data?.pushname || body.senderData?.pushName || body.senderData?.senderName || 'לקוח מתעניין (בוט)';
+                    console.log(`[Server] Capturing brand new lead ${cleanPhone} immediately to CRM...`);
+                    try {
+                        await dbService.upsertLead({
+                            phone: cleanPhone,
+                            full_name: pushName,
+                            summary_sentence: 'פנה כרגע לבוט וטרם מסר פרטים.',
+                            meeting_time: null,
+                            status: 'new'
+                        });
+                    } catch (captureErr) {
+                        console.error("[Server] Error capturing early lead:", captureErr);
+                    }
+                }
+
                 sessions[chatId] = agentLogic.createSession(chatId, existingLead);
             }
             const session = sessions[chatId];
